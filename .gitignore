@@ -1,0 +1,191 @@
+############################################
+# Geral / OS
+############################################
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.swo
+*.tmp
+*.temp
+*.bak
+
+# Linux
+.nfs*
+.Trash-*
+.cache/
+.local/share/Trash/
+
+############################################
+# IDEs / Editores
+############################################
+# VS Code / Code-OSS
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# JetBrains
+.idea/
+*.iml
+
+############################################
+# Python
+############################################
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.pyre/
+
+# Ambientes virtuais
+.venv/
+venv/
+ENV/
+env/
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
+
+############################################
+# Poetry
+############################################
+# Poetry lock: mantenha versionado (recomendado)
+# poetry.lock
+
+# Poetry caches (se aparecerem localmente)
+.poetry/
+poetry.toml
+
+############################################
+# FastAPI / Uvicorn / Runtime
+############################################
+*.log
+logs/
+log/
+run.log
+
+# Arquivos locais de configuração sensível
+.env
+.env.*
+!.env.example
+
+############################################
+# Banco / dados locais
+############################################
+# SQLite (se você usar em dev)
+*.sqlite3
+*.db
+*.sqlite
+*.sqlite-journal
+
+############################################
+# Node / React / Vite
+############################################
+node_modules/
+dist/
+build/
+.cache/
+.vite/
+*.tsbuildinfo
+
+# Logs do npm/yarn/pnpm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+############################################
+# Docker / Compose
+############################################
+# Arquivos gerados localmente por containers
+docker-data/
+data/
+volumes/
+tmp/
+*.pid
+
+# Override local (caso use)
+docker-compose.override.yml
+
+############################################
+# MinIO / Artefatos gerados (3D, previews etc.)
+############################################
+# Pastas locais de artefatos (se você gerar localmente antes do MinIO)
+artifacts/
+artefatos/
+outputs/
+output/
+exports/
+export/
+generated/
+gerados/
+models/
+modelos/
+renders/
+previews/
+
+# Arquivos comuns de modelos 3D e exports (ignore se forem apenas outputs)
+*.glb
+*.gltf
+*.obj
+*.fbx
+*.stl
+*.ply
+*.usdz
+*.blend
+
+# Imagens e áudio de teste (se forem gerados automaticamente)
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.wav
+*.mp3
+*.ogg
+*.m4a
+
+############################################
+# Ferramentas de API (Insomnia/Bruno/Postman) - opcional
+############################################
+# Se você salvar coleções localmente e não quiser versionar:
+.insomnia/
+.bruno/
+.postman/
+
+# Se você quiser versionar as coleções, remova as linhas acima
+# e prefira manter em uma pasta tipo: api-tests/ versionada.
+
+############################################
+# Documentação / Obsidian
+############################################
+# Cache do Obsidian
+.obsidian/cache/
+.obsidian/workspace*
+.obsidian/graph.json
+.obsidian/canvas.json
+
+# Se sua vault Obsidian estiver dentro do repo e você quiser versionar configs,
+# remova as linhas acima e selecione manualmente o que manter.
+
+############################################
+# Outros
+############################################
+# Arquivos de credenciais
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
