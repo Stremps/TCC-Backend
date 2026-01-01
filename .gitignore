@@ -15,6 +15,7 @@ Thumbs.db
 .Trash-*
 .cache/
 .local/share/Trash/
+.test/
 
 ############################################
 # IDEs / Editores
@@ -189,3 +190,4 @@ previews/
 *.crt
 *.p12
 *.pfx
+!vm-mgmnt/backend/app/models/

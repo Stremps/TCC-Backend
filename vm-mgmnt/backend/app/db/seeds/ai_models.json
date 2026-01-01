@@ -1,0 +1,27 @@
+[
+  {
+    "id": "sf3d-v1",
+    "name": "Stable Fast 3D",
+    "description": "Modelo Feed-Forward rápido (Image-to-3D). Gera malha e textura em segundos.",
+    "default_params": {
+      "texture_resolution": 1024,
+      "remesh_option": "triangle",
+      "foreground_ratio": 0.85,
+      "batch_size": 1
+    },
+    "is_active": true
+  },
+  {
+    "id": "dreamfusion-sd",
+    "name": "DreamFusion (SD)",
+    "description": "Modelo Iterativo via Threestudio (Text-to-3D). Alta qualidade, processo lento.",
+    "default_params": {
+      "max_steps": 10000,
+      "guidance_scale": 100.0,
+      "seed": 0,
+      "random_bg": true,
+      "batch_size": 1
+    },
+    "is_active": true
+  }
+]
