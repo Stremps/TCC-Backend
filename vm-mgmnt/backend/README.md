@@ -28,8 +28,10 @@ poetry install
 
 ### C) Variáveis de Ambiente
 
-1. Copie o exemplo para criar seu arquivo de configuração local:```bash
+1. Copie o exemplo para criar seu arquivo de configuração local:
+```bash
 cp .env.example .env
+```
 
 2. Edite o arquivo `.env` e insira a Connection String do Supabase na variável `DATABASE_URL`.
 **Importante:** Utilize o driver assíncrono `postgresql+asyncpg://`.
@@ -107,4 +109,85 @@ Acesse a documentação automática em: http://127.0.0.1:8000/docs
 
 O projeto usa `ruff` para padronização. Para verificar o código:
 ```bash
-poetry run ruff check .```
+poetry run ruff check .
+```
+
+---
+
+## 5) API Reference (Endpoints)
+
+A API segue o padrão **RESTful**. Todos os endpoints são prefixados com `/api/v1`.
+
+### A) Autenticação
+Todas as rotas exigem autenticação via Header.
+* **Header:** `x-api-key`
+* **Valor:** Sua chave de API
+
+### B) Criar Job de Geração
+Inicia um novo processo de geração 3D. A resposta é imediata (assíncrona) e devolve um ID para acompanhamento.
+
+* **Rota:** `POST /jobs/`
+* **Status Sucesso:** `201 Created`
+
+#### 1. Corpo da Requisição (JSON)
+
+| Campo | Tipo | Obrigatório | Descrição |
+| :--- | :--- | :---: | :--- |
+| `model_id` | `string` | Sim | ID do modelo (ex: `sf3d-v1`, `dreamfusion-sd`). |
+| `input_params` | `dict` | Sim | Parâmetros específicos do modelo (resolução, steps). |
+| `prompt` | `string` | Não | Obrigatório apenas para modelos Text-to-3D. |
+
+**Exemplo de Request:**
+```json
+{
+  "model_id": "sf3d-v1",
+  "input_params": {
+    "texture_resolution": 1024,
+    "foreground_ratio": 0.85
+  }
+}
+```
+
+**Exemplo de Resposta:**
+
+```json
+{
+  "id": "a1b2c3d4-1234-5678-90ab-cdef12345678",
+  "model_id": "sf3d-v1",
+  "status": "QUEUED",
+  "created_at": "2025-12-31T20:00:00.123456",
+  "input_params": { ... }
+}
+```
+
+### C) Consultar Status (Polling)
+
+Busca os detalhes atualizados de um Job. Utilize este endpoint periodicamente (ex: a cada 2s) para verificar se o status mudou de `QUEUED` para `SUCCEEDED`.
+
+* **Rota:** `GET /jobs/{job_id}`
+* **Status Sucesso:** `200 OK`
+* **Erros Comuns:** `404` (Não encontrado) ou `403` (Sem permissão).
+
+**Exemplo de Resposta:**
+
+```json
+{
+  "id": "a1b2c3d4-1234-5678-90ab-cdef12345678",
+  "status": "SUCCEEDED",
+  "progress_percent": 100,
+  "created_at": "2025-12-31T20:00:00.000000",
+  "started_at": "2025-12-31T20:00:05.000000",
+  "completed_at": "2025-12-31T20:00:15.000000",
+  "model_id": "sf3d-v1",
+  "input_params": { ... }
+}
+```
+
+---
+
+## 6) 📚 Documentação Interativa (Swagger UI)
+
+Para testar a API visualmente e ver todos os schemas detalhados, acesse com o servidor rodando:
+
+* **Swagger UI:** [http://localhost:8000/docs](https://www.google.com/search?q=http://localhost:8000/docs)
+* **ReDoc:** [http://localhost:8000/redoc](https://www.google.com/search?q=http://localhost:8000/redoc)
