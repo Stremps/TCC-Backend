@@ -1,13 +1,39 @@
 services:
+  # Serviço de Banco em Memória (Fila de Jobs)
   redis:
     image: redis:7-alpine
     container_name: tcc-redis
     command: redis-server --appendonly yes
     restart: always
     ports:
-      - "6379:6379"
+      - "6379:6379" 
     volumes:
       - redis_data:/data
+    networks:
+      - tcc-network
+
+  # Aplicação Backend (FastAPI)
+  api:
+    build:
+      context: ./backend      
+      dockerfile: Dockerfile  
+    container_name: tcc-api
+    restart: always
+    ports:
+      - "8000:8000"           # Expõe a porta 8000 
+    env_file:
+      - ./backend/.env        # Leitura das variáveis de ambiente
+    environment:
+      - REDIS_HOST=redis      # Ensina a API a buscar o container 'redis' e não 'localhost'
+    depends_on:
+      - redis
+    networks:
+      - tcc-network
 
 volumes:
   redis_data:
+
+# Rede interna para comunicação segura entre containers
+networks:
+  tcc-network:
+    driver: bridge

@@ -1,0 +1,26 @@
+# Ignorar Git e configurações de IDE
+.git
+.gitignore
+.vscode
+.idea
+
+# Ignorar ambientes virtuais locais e cache do Python
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Ignorar arquivos de ambiente local (Segurança: o docker-compose que vai injetar isso)
+.env
+.env.local
+
+# Ignorar banco de dados local SQLite (se houver)
+*.db
+*.sqlite3
+
+# Ignorar pastas de teste e logs
+tests
+logs
+coverage
+htmlcov
