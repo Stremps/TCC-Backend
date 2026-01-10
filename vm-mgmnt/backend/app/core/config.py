@@ -7,6 +7,9 @@ class Settings(BaseSettings):
     # Conexão com banco de dados
     DATABASE_URL: str
 
+    # Conexão com a Fila
+    REDIS_URL: str
+
     # Primeiro usuário
     FIRST_SUPERUSER_USERNAME: str
     FIRST_SUPERUSER_PASSWORD: str

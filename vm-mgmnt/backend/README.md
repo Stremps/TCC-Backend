@@ -185,7 +185,15 @@ Busca os detalhes atualizados de um Job. Utilize este endpoint periodicamente (e
 
 ---
 
-## 6) 📚 Documentação Interativa (Swagger UI)
+## 6) Como rodar o Worker
+
+Para receber os trabalhos da fila, o worker terá um script específico para ele. O sistema de Fila recebe o job do orquestrador, e assim que tem um worker disponível, o pedido é consumido neste script. Para subir o worker, basta rodar o seguinte comando:
+
+```bash
+poetry run rq worker default
+```
+
+## Documentação Interativa (Swagger UI)
 
 Para testar a API visualmente e ver todos os schemas detalhados, acesse com o servidor rodando:
 

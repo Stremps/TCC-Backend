@@ -5,7 +5,9 @@ from sqlalchemy import select
 from app.models.ai_model import AIModel
 from app.models.job_model import Job
 from app.schemas.job import JobCreate, JobRead
-from app.api.deps import CurrentUser, db_session  # Importamos nossas dependências
+from app.api.deps import CurrentUser, db_session
+from app.core.queue import job_queue
+from app.worker import process_job
 
 router = APIRouter()
 
@@ -45,9 +47,16 @@ async def create_job(
     # 3. Persistência
     session.add(new_job)
     await session.commit()
-    
-    # Atualiza o objeto com o ID e Created_at gerados pelo banco
-    await session.refresh(new_job)
+    await session.refresh(new_job) # Atualiza o objeto com o ID e Created_at gerados pelo banco
+
+    # 4. Envio para a Fila
+    # "app.worker.process_job" é o nome da função que criaremos no Card 2.
+    job_queue.enqueue(     # Passamos apenas dados simples (strings/dicts), nunca objetos do Banco.
+        process_job,
+        str(new_job.id),      # Converta UUID para string
+        new_job.model_id,
+        new_job.input_params
+    )
 
     return new_job
 
