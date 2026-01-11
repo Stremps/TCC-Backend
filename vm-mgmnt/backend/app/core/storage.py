@@ -58,6 +58,31 @@ class StorageClient:
             logger.error(f"Erro ao fazer upload para o MinIO: {e}")
             raise e
 
+    def generate_presigned_url(self, object_name: str, expiration: int = 3600) -> str:
+            """
+            Gera uma URL temporária para download direto do MinIO.
+            
+            Args:
+                object_name: O caminho do arquivo no bucket (ex: jobs/123/output.glb)
+                expiration: Tempo de vida do link em segundos (Padrão: 1 hora)
+                
+            Returns:
+                A URL completa e assinada.
+            """
+            try:
+                url = self.s3_client.generate_presigned_url(
+                    'get_object',
+                    Params={
+                        'Bucket': self.bucket_name,
+                        'Key': object_name
+                    },
+                    ExpiresIn=expiration
+                )
+                return url
+            except ClientError as e:
+                logger.error(f"Erro ao gerar URL assinada: {e}")
+                return "" # Ou lançar exceção, dependendo da estratégia
+
 # Instância Singleton:
 # Ao importar 'storage' em outros arquivos, usaremos sempre esta mesma conexão
 storage = StorageClient()

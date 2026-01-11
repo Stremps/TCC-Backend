@@ -3,10 +3,12 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from app.models.ai_model import AIModel
+from app.models.artifact_model import Artifact
 from app.models.job_model import Job
 from app.schemas.job import JobCreate, JobRead
 from app.api.deps import CurrentUser, db_session
 from app.core.queue import job_queue
+from app.core.storage import storage
 from app.worker import process_job
 
 router = APIRouter()
@@ -91,3 +93,56 @@ async def get_job_status(
         )
 
     return job
+
+@router.get("/{job_id}/download", status_code=status.HTTP_200_OK)
+async def download_job_artifact(
+    job_id: uuid.UUID,
+    current_user: CurrentUser,
+    session: db_session,
+):
+    """
+    Gera uma URL temporária (Presigned URL) para baixar o resultado final.
+    A API não faz o download, apenas autoriza e redireciona.
+    """
+    
+    # 1. Busca o Job
+    job = await session.get(Job, job_id)
+
+    if not job:
+        raise HTTPException(status_code=404, detail="Job não encontrado")
+
+    # 2. Segurança: Apenas o dono pode baixar
+    if job.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    # 3. Validação de Estado
+    if job.status != "SUCCEEDED":
+        raise HTTPException(
+            status_code=400, 
+            detail=f"O Job ainda não foi finalizado. Status atual: {job.status}"
+        )
+
+    # 4. Busca o Artefato no Banco
+    # Precisamos achar onde o arquivo está guardado (caminho no MinIO)
+    stmt = select(Artifact).where(
+        Artifact.job_id == job_id,
+        Artifact.type == "OUTPUT_MODEL" # Buscamos especificamente o modelo 3D
+    )
+    result = await session.execute(stmt)
+    artifact = result.scalar_one_or_none()
+
+    if not artifact:
+        raise HTTPException(
+            status_code=404, 
+            detail="Artefato não encontrado. O processamento pode ter falhado silenciosamente."
+        )
+
+    # 5. Gera o Ticket VIP (Presigned URL)
+    # Validade: 1 hora (3600 segundos)
+    presigned_url = storage.generate_presigned_url(artifact.storage_path, expiration=3600)
+
+    if not presigned_url:
+        raise HTTPException(status_code=500, detail="Erro ao gerar link de download")
+
+    # Retorna o link para o cliente (Unity/Front) baixar
+    return {"download_url": presigned_url, "expires_in": 3600}

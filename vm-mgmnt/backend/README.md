@@ -183,6 +183,25 @@ Busca os detalhes atualizados de um Job. Utilize este endpoint periodicamente (e
 }
 ```
 
+### D) Download do Artefato
+
+Gera uma URL temporária e segura (**Presigned URL**) para baixar o arquivo 3D final diretamente do Storage. O link possui validade de 1 hora.
+
+* **Rota:** `GET /jobs/{job_id}/download`
+* **Status Sucesso:** `200 OK`
+* **Pré-requisito:** O Job deve estar com status `SUCCEEDED`.
+* **Erros Comuns:** `400` (Job ainda não finalizado) ou `404` (Arquivo não encontrado).
+
+**Exemplo de Resposta:**
+
+```json
+{
+  "download_url": "[http://192.168.1.181:9000/tcc-pipeline/jobs/...?X-Amz-Signature=](http://192.168.1.181:9000/tcc-pipeline/jobs/...?X-Amz-Signature=)...",
+  "expires_in": 3600
+}
+
+```
+
 ---
 
 ## 6) Como rodar o Worker
