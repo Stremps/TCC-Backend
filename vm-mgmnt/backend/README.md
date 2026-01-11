@@ -193,9 +193,55 @@ Para receber os trabalhos da fila, o worker terá um script específico para ele
 poetry run rq worker default
 ```
 
+## 7) Monitorar Fila (Dashboard)
+
+Interface visual para ver jobs e falhas. Depois de deixar rodando, acesse em `http://localhost:9181`
+
+```bash
+poetry run rq-dashboard
+```
+
 ## Documentação Interativa (Swagger UI)
 
 Para testar a API visualmente e ver todos os schemas detalhados, acesse com o servidor rodando:
 
 * **Swagger UI:** [http://localhost:8000/docs](https://www.google.com/search?q=http://localhost:8000/docs)
 * **ReDoc:** [http://localhost:8000/redoc](https://www.google.com/search?q=http://localhost:8000/redoc)
+
+## Arquitetura do Backend
+
+Este projeto utiliza uma arquitetura baseada em eventos para processamento assíncrono de tarefas pesadas (Geração 3D).
+
+* **API (FastAPI):** Responsável por receber requisições, autenticação e leitura de dados. Opera de forma 100% assíncrona (`asyncio`).
+* **Worker (RQ):** Processo separado responsável por executar a IA e tarefas de I/O intensivo. Opera de forma síncrona e híbrida.
+* **Broker (Redis):** Gerencia a fila de tarefas entre API e Worker.
+* **Storage (MinIO):** Armazena os arquivos grandes (modelos 3D, texturas) gerados.
+
+---
+
+## ⚙️ Variáveis de Ambiente (.env)
+
+Crie um arquivo `.env` na raiz desta pasta baseado no `.env.example`. Abaixo, a explicação detalhada de cada variável crítica para a infraestrutura.
+
+### 🗄️ Banco de Dados (Postgres)
+| Variável | Descrição | Exemplo |
+| :--- | :--- | :--- |
+| `DATABASE_URL` | String de conexão SQLAlchemy (Async). | `postgresql+asyncpg://user:pass@host:5432/db` |
+
+### 🚀 Fila de Tarefas (Redis)
+Necessário para comunicação entre API e Workers.
+| Variável | Descrição | Exemplo |
+| :--- | :--- | :--- |
+| `REDIS_URL` | Endereço do broker Redis. | `redis://localhost:6379/0` |
+
+### ☁️ Object Storage (MinIO / S3)
+Configuração para upload de artefatos gerados.
+| Variável | Descrição | Exemplo |
+| :--- | :--- | :--- |
+| `MINIO_ENDPOINT` | URL da API do MinIO (não do Console). | `http://192.168.1.181:9000` |
+| `MINIO_ACCESS_KEY` | Chave de acesso (ou usuário root em dev). | `admin` |
+| `MINIO_SECRET_KEY` | Chave secreta (ou senha root em dev). | `password` |
+| `MINIO_BUCKET` | Nome do bucket para salvar arquivos. | `tcc-pipeline` |
+| `MINIO_SECURE` | Define se usa HTTPS (`True`) ou HTTP (`False`). | `False` |
+
+---
