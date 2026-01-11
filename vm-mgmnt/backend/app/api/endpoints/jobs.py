@@ -139,10 +139,10 @@ async def download_job_artifact(
 
     # 5. Gera o Ticket VIP (Presigned URL)
     # Validade: 1 hora (3600 segundos)
-    presigned_url = storage.generate_presigned_url(artifact.storage_path, expiration=3600)
+    presigned_url = storage.generate_presigned_url(artifact.storage_path, expiration=600)
 
     if not presigned_url:
         raise HTTPException(status_code=500, detail="Erro ao gerar link de download")
 
     # Retorna o link para o cliente (Unity/Front) baixar
-    return {"download_url": presigned_url, "expires_in": 3600}
+    return {"download_url": presigned_url, "expires_in": 600}
