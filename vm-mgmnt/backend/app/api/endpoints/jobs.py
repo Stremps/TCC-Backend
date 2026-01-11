@@ -5,6 +5,7 @@ from sqlalchemy import select
 from app.models.ai_model import AIModel
 from app.models.artifact_model import Artifact
 from app.models.job_model import Job
+from app.schemas.artifact import ArtifactDownload
 from app.schemas.job import JobCreate, JobRead
 from app.api.deps import CurrentUser, db_session
 from app.core.queue import job_queue
@@ -94,7 +95,7 @@ async def get_job_status(
 
     return job
 
-@router.get("/{job_id}/download", status_code=status.HTTP_200_OK)
+@router.get("/{job_id}/download", response_model=ArtifactDownload)
 async def download_job_artifact(
     job_id: uuid.UUID,
     current_user: CurrentUser,
@@ -145,4 +146,7 @@ async def download_job_artifact(
         raise HTTPException(status_code=500, detail="Erro ao gerar link de download")
 
     # Retorna o link para o cliente (Unity/Front) baixar
-    return {"download_url": presigned_url, "expires_in": 600}
+    return ArtifactDownload(
+        download_url=presigned_url,
+        expires_in=600
+    )

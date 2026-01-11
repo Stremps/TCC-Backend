@@ -224,8 +224,8 @@ poetry run rq-dashboard
 
 Para testar a API visualmente e ver todos os schemas detalhados, acesse com o servidor rodando:
 
-* **Swagger UI:** [http://localhost:8000/docs](https://www.google.com/search?q=http://localhost:8000/docs)
-* **ReDoc:** [http://localhost:8000/redoc](https://www.google.com/search?q=http://localhost:8000/redoc)
+* **Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs)
+* **ReDoc:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
 ## Arquitetura do Backend
 
