@@ -30,6 +30,21 @@ services:
     networks:
       - tcc-network
 
+  # RQ Dashboard (Monitoramento)
+  dashboard:
+    image: eoranged/rq-dashboard
+    container_name: tcc-dashboard
+    restart: always
+    ports:
+      - "9181:9181" # Expõe a porta para você acessar via Browser
+    environment:
+      # Configura o dashboard para olhar para o nosso container de Redis
+      - RQ_DASHBOARD_REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    networks:
+      - tcc-network
+
 volumes:
   redis_data:
 
