@@ -30,6 +30,26 @@ services:
     networks:
       - tcc-network
 
+  # Worker (Consumidor)
+  # Reusa a mesma imagem da API (tem o mesmo código), mas roda outro comando.
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tcc-worker
+    restart: always
+    command: rq worker default     # Comando para iniciar o Worker do RQ
+    env_file:
+      - ./backend/.env
+    environment:
+      # O Worker também precisa saber onde está o Redis (mesma regra da API)
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+      - api
+    networks:
+      - tcc-network
+
   # RQ Dashboard (Monitoramento)
   dashboard:
     image: eoranged/rq-dashboard
