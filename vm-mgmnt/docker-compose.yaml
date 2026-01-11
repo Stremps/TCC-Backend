@@ -1,74 +1,73 @@
 services:
-  # Serviço de Banco em Memória (Fila de Jobs)
+  # 1. Banco de Dados em Memória (Broker da Fila)
   redis:
     image: redis:7-alpine
     container_name: tcc-redis
     command: redis-server --appendonly yes
     restart: always
     ports:
-      - "6379:6379" 
+      - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
       - tcc-network
 
-  # Aplicação Backend (FastAPI)
+  # 2. API Backend (Produtor de Jobs)
   api:
     build:
-      context: ./backend      
-      dockerfile: Dockerfile  
+      context: ./backend      # Aponta para a pasta onde está o Dockerfile
+      dockerfile: Dockerfile
     container_name: tcc-api
     restart: always
     ports:
-      - "8000:8000"           # Expõe a porta 8000 
+      - "8000:8000"
     env_file:
-      - ./backend/.env        # Leitura das variáveis de ambiente
+      - ./backend/.env
     environment:
-      - REDIS_HOST=redis      # Ensina a API a buscar o container 'redis' e não 'localhost'
+      - REDIS_URL=redis://tcc-redis:6379/0
+      - PYTHONPATH=/app
     depends_on:
       - redis
     networks:
       - tcc-network
 
-  # Worker (Consumidor)
-  # Reusa a mesma imagem da API (tem o mesmo código), mas roda outro comando.
+  # 3. Worker (Consumidor de Jobs)
   worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: tcc-worker
     restart: always
-    command: rq worker default     # Comando para iniciar o Worker do RQ
+    command: rq worker default
     env_file:
       - ./backend/.env
     environment:
-      # O Worker também precisa saber onde está o Redis (mesma regra da API)
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=redis://tcc-redis:6379/0
+      - PYTHONPATH=/app
     depends_on:
       - redis
       - api
     networks:
       - tcc-network
 
-  # RQ Dashboard (Monitoramento)
+  # 4. Dashboard (Monitoramento)
   dashboard:
     image: eoranged/rq-dashboard
     container_name: tcc-dashboard
     restart: always
     ports:
-      - "9181:9181" # Expõe a porta para você acessar via Browser
+      - "9181:9181"
     environment:
-      # Configura o dashboard para olhar para o nosso container de Redis
-      - RQ_DASHBOARD_REDIS_URL=redis://redis:6379/0
+      - RQ_DASHBOARD_REDIS_URL=redis://tcc-redis:6379/0
     depends_on:
       - redis
+      - worker
     networks:
       - tcc-network
 
 volumes:
   redis_data:
 
-# Rede interna para comunicação segura entre containers
 networks:
   tcc-network:
     driver: bridge
