@@ -191,3 +191,4 @@ previews/
 *.p12
 *.pfx
 !vm-mgmnt/backend/app/models/
+!vm-ia/app/models/

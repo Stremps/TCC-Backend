@@ -206,11 +206,7 @@ Gera uma URL temporária e segura (**Presigned URL**) para baixar o arquivo 3D f
 
 ## 6) Como rodar o Worker
 
-Para receber os trabalhos da fila, o worker terá um script específico para ele. O sistema de Fila recebe o job do orquestrador, e assim que tem um worker disponível, o pedido é consumido neste script. Para subir o worker, basta rodar o seguinte comando:
-
-```bash
-poetry run rq worker default
-```
+Para receber os trabalhos da fila, o worker terá um script específico para ele. Mas isso estará nos arquivos de VM-IA, por favor consultar para entender melhor.
 
 ## 7) Monitorar Fila (Dashboard)
 

@@ -31,26 +31,7 @@ services:
     networks:
       - tcc-network
 
-  # 3. Worker (Consumidor de Jobs)
-  worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: tcc-worker
-    restart: always
-    command: rq worker default
-    env_file:
-      - ./backend/.env
-    environment:
-      - REDIS_URL=redis://tcc-redis:6379/0
-      - PYTHONPATH=/app
-    depends_on:
-      - redis
-      - api
-    networks:
-      - tcc-network
-
-  # 4. Dashboard (Monitoramento)
+  # 3. Dashboard (Monitoramento)
   dashboard:
     image: eoranged/rq-dashboard
     container_name: tcc-dashboard
@@ -61,7 +42,6 @@ services:
       - RQ_DASHBOARD_REDIS_URL=redis://tcc-redis:6379/0
     depends_on:
       - redis
-      - worker
     networks:
       - tcc-network
 

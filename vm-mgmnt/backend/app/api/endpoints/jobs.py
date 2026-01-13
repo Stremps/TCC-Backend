@@ -10,7 +10,6 @@ from app.schemas.job import JobCreate, JobRead
 from app.api.deps import CurrentUser, db_session
 from app.core.queue import job_queue
 from app.core.storage import storage
-from app.worker import process_job
 
 router = APIRouter()
 
@@ -53,9 +52,8 @@ async def create_job(
     await session.refresh(new_job) # Atualiza o objeto com o ID e Created_at gerados pelo banco
 
     # 4. Envio para a Fila
-    # "app.worker.process_job" é o nome da função que criaremos no Card 2.
     job_queue.enqueue(     # Passamos apenas dados simples (strings/dicts), nunca objetos do Banco.
-        process_job,
+        "app.worker.process_job",
         str(new_job.id),      # Converta UUID para string
         new_job.model_id,
         new_job.input_params
