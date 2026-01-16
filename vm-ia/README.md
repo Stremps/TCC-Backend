@@ -64,3 +64,7 @@ Para facilitar a integração de novos modelos, utilizamos o padrão de **Wrappe
 * `wrappers/dreamfusion/`: Lógica para o modelo DreamFusion.
 
 O `app/worker.py` atua apenas como um "gerente", delegando a execução técnica para esses scripts.
+
+Consulte o README dentro da pasta `wrappers/` para detalhes técnicos sobre os parâmetros de entrada e saída de cada modelo.
+
+
