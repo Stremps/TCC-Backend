@@ -10,7 +10,7 @@ from app.models.base import Base
 # --- DEFINIÇÃO DO ENUM (Adicionado) ---
 class ArtifactType(str, enum.Enum):
     INPUT = "INPUT"           # Imagem ou Texto de entrada
-    MODEL_3D = "MODEL_3D"     # O arquivo .glb ou .obj final
+    OUTPUT_MODEL = "OUTPUT_MODEL"     # O arquivo .glb ou .obj final
     PREVIEW = "PREVIEW"       # Thumbnail ou render
     LOG = "LOG"               # Arquivos de log de erro
 

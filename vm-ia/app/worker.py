@@ -56,7 +56,7 @@ def process_job(job_id: str, model_id: str, input_params: dict):
     with tempfile.TemporaryDirectory() as temp_dir:
         try:
             output_file_path = None
-            artifact_type = ArtifactType.MODEL_3D
+            artifact_type = ArtifactType.OUTPUT_MODEL
             
             # ====================================================
             # LÓGICA DO STABLE FAST 3D (Image-to-3D)
