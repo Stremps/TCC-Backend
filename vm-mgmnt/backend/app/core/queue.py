@@ -7,7 +7,7 @@ redis_conn = redis.from_url(settings.REDIS_URL) # Usamos a URL definida no .env
 
 # Criamos a fila padrão do sistema
 # É para esta fila que enviaremos os jobs de geração 3D
-job_queue = Queue("default", connection=redis_conn)
+job_queue = Queue("default", connection=redis_conn, default_timeout=5400)
 
 def get_queue() -> Queue:
     """

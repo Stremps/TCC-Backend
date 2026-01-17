@@ -56,7 +56,8 @@ async def create_job(
         "app.worker.process_job",
         str(new_job.id),      # Converta UUID para string
         new_job.model_id,
-        new_job.input_params
+        new_job.input_params,
+        job_timeout=5400
     )
 
     return new_job
