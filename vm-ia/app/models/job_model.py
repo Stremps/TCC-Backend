@@ -1,4 +1,5 @@
 import uuid
+import enum  # <--- Importante
 from datetime import datetime
 from typing import Any
 from sqlalchemy import String, Integer, Text, DateTime, ForeignKey
@@ -6,6 +7,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from app.models.base import Base
+
+# --- DEFINIÇÃO DO ENUM (Adicionado) ---
+class JobStatus(str, enum.Enum):
+    QUEUED = "QUEUED"
+    PROCESSING = "PROCESSING"
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
 
 class Job(Base):
     __tablename__ = "jobs"
@@ -17,7 +25,7 @@ class Job(Base):
     model_id: Mapped[str] = mapped_column(ForeignKey("models.id"), nullable=False)
 
     # Estados e Progresso
-    status: Mapped[str] = mapped_column(String, default="QUEUED", index=True)
+    status: Mapped[str] = mapped_column(String, default=JobStatus.QUEUED, index=True)
     progress_percent: Mapped[int] = mapped_column(Integer, default=0)
     
     # Inputs
@@ -31,9 +39,10 @@ class Job(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relacionamentos
+    # Strings literais evitam import circular se os outros models não estiverem carregados ainda
     user = relationship("app.models.user_model.User", back_populates="jobs")
     model = relationship("app.models.ai_model.AIModel", back_populates="jobs")
     
-    # Relacionamento com tabelas filhas (cascade delete: se apagar job, apaga artefatos e eventos)
+    # Relacionamento com tabelas filhas
     artifacts = relationship("Artifact", back_populates="job", cascade="all, delete-orphan")
     events = relationship("JobEvent", back_populates="job", cascade="all, delete-orphan")

@@ -47,10 +47,10 @@ def start_worker():
     # 3. Instancia as Filas com a Conexão Explícita (A CORREÇÃO ESTÁ AQUI)
     # Precisamos passar 'connection=conn' para CADA fila, não apenas para o Worker
     try:
-        queues = [Queue(name, connection=conn) for name in listen]
+        queues = [Queue(name, connection=conn, default_timeout=5400) for name in listen]
         
         # 4. Inicia o Worker
-        logger.info("Inicializando worker dedicado...")
+        logger.info("Inicializando worker dedicado com timeout de 1h30m...")
         
         worker = Worker(
             queues, 

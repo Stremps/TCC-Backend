@@ -1,3 +1,4 @@
+import os
 import boto3
 import logging
 from botocore.exceptions import ClientError
@@ -13,6 +14,7 @@ class StorageClient:
         self.bucket_name = settings.MINIO_BUCKET
         
         # Inicializa o cliente boto3 com as configs do nosso .env
+        # Mantendo o nome original 's3_client'
         self.s3_client = boto3.client(
             "s3",
             endpoint_url=settings.MINIO_ENDPOINT,
@@ -36,52 +38,47 @@ class StorageClient:
                 self.s3_client.create_bucket(Bucket=self.bucket_name)
                 logger.info(f"Bucket '{self.bucket_name}' criado com sucesso.")
             except Exception as e:
-                logger.error(f"Falha crítica ao criar bucket: {e}")
+                logger.error(f"Erro crítico ao criar bucket: {e}")
                 raise e
 
-    def upload_file(self, file_path: str, object_name: str) -> str:
+    def upload_file(self, file_path: str, bucket: str, object_name: str = None) -> bool:
         """
-        Faz o upload de um arquivo local para o MinIO.
+        Faz upload de um arquivo local para o MinIO.
         
         Args:
-            file_path: Caminho do arquivo no disco local (ex: /tmp/cubo.glb)
-            object_name: Nome que o arquivo terá no MinIO (ex: jobs/123/cubo.glb)
-            
-        Returns:
-            O object_name em caso de sucesso.
+            file_path: Caminho local do arquivo.
+            bucket: Nome do bucket de destino.
+            object_name: Nome do objeto no bucket (se None, usa o nome do arquivo).
         """
+        if object_name is None:
+            object_name = os.path.basename(file_path)
+
         try:
-            self.s3_client.upload_file(file_path, self.bucket_name, object_name)
-            logger.info(f"Upload realizado com sucesso: {object_name}")
-            return object_name
-        except ClientError as e:
-            logger.error(f"Erro ao fazer upload para o MinIO: {e}")
+            # Correção: Usando self.s3_client (consistente com __init__)
+            self.s3_client.upload_file(file_path, bucket, object_name)
+            logger.info(f"Upload realizado com sucesso: {file_path} -> {bucket}/{object_name}")
+            return True
+        except Exception as e:
+            logger.error(f"Erro no upload para o MinIO: {e}")
             raise e
 
-    def generate_presigned_url(self, object_name: str, expiration: int = 3600) -> str:
-            """
-            Gera uma URL temporária para download direto do MinIO.
-            
-            Args:
-                object_name: O caminho do arquivo no bucket (ex: jobs/123/output.glb)
-                expiration: Tempo de vida do link em segundos (Padrão: 1 hora)
-                
-            Returns:
-                A URL completa e assinada.
-            """
-            try:
-                url = self.s3_client.generate_presigned_url(
-                    'get_object',
-                    Params={
-                        'Bucket': self.bucket_name,
-                        'Key': object_name
-                    },
-                    ExpiresIn=expiration
-                )
-                return url
-            except ClientError as e:
-                logger.error(f"Erro ao gerar URL assinada: {e}")
-                return "" # Ou lançar exceção, dependendo da estratégia
+    def download_file(self, bucket: str, object_name: str, file_path: str) -> bool:
+        """
+        Baixa um arquivo do MinIO para o disco local.
+        
+        Args:
+            bucket: Nome do bucket de origem.
+            object_name: Nome do objeto no MinIO.
+            file_path: Caminho local onde salvar o arquivo.
+        """
+        try:
+            # Correção: Assinatura corrigida para receber bucket, object_name e file_path
+            self.s3_client.download_file(bucket, object_name, file_path)
+            logger.info(f"Download realizado com sucesso: {object_name} -> {file_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Erro ao baixar arquivo do MinIO: {e}")
+            raise e
 
 # Instância Singleton:
 # Ao importar 'storage' em outros arquivos, usaremos sempre esta mesma conexão

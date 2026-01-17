@@ -17,6 +17,15 @@ class Settings(BaseSettings):
     # Conexão com a Fila
     REDIS_URL: str
 
+    # SF3D
+    SF3D_PYTHON_PATH: str
+    SF3D_SCRIPT_PATH: str
+
+    # DreamFusion
+    DREAMFUSION_PYTHON_PATH: str
+    DREAMFUSION_SCRIPT_PATH: str
+    DREAMFUSION_CONFIG: str = "configs/dreamfusion-sd.yaml" # Valor padrão
+
     # Leitura do arquivo .env
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=True)
 

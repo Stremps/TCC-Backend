@@ -1,111 +1,157 @@
-import time
-import logging
+import sys
 import os
-from uuid import UUID
+import time
+import json
+import logging
+import subprocess
+import tempfile
+import shutil
+from pathlib import Path
+from datetime import datetime
 
+# Imports do Core
 from app.core.database import SessionLocal
-from app.models.job_model import Job
-from app.models.artifact_model import Artifact  
-from app.core.storage import storage            
+from app.core.storage import storage 
+from app.core.config import settings
+
+# Imports dos Modelos
+from app.models.job_model import Job, JobStatus
+from app.models.artifact_model import Artifact, ArtifactType
 
 # Configuração de Logs
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - [Worker] - %(message)s')
 logger = logging.getLogger(__name__)
 
-# --- Funções de Banco (Síncronas) ---
+# Caminho absoluto para a pasta de wrappers
+BASE_DIR = Path(__file__).resolve().parents[1]
+WRAPPERS_DIR = BASE_DIR / "wrappers"
 
-def update_job_status(job_id_str: str, status: str):
-    """Atualiza o status do Job no banco."""
+def get_job_session(job_id):
+    """Helper para obter sessão e job atualizados"""
     session = SessionLocal()
     try:
-        job_uuid = UUID(job_id_str)
-        job = session.get(Job, job_uuid)
-        if job:
-            job.status = status
-            session.add(job)
-            session.commit()
-            logger.info(f"Job {job_id_str} atualizado para {status}")
-        else:
-            logger.error(f"Job {job_id_str} não encontrado!")
+        job = session.query(Job).filter(Job.id == job_id).first()
+        return session, job
     except Exception as e:
-        logger.error(f"Erro ao atualizar status: {e}")
-        session.rollback()
-    finally:
         session.close()
-
-def save_artifact(job_id_str: str, storage_path: str, file_size: int):
-    """
-    Cria o registro na tabela 'artifacts' apontando para o arquivo no MinIO.
-    Isso é crucial para que a API saiba onde está o download depois.
-    """
-    session = SessionLocal()
-    try:
-        job_uuid = UUID(job_id_str)
-        
-        artifact = Artifact(
-            job_id=job_uuid,
-            type="OUTPUT_MODEL",  # Tipo fixo para o modelo 3D final
-            storage_path=storage_path,
-            file_size_bytes=file_size
-        )
-        
-        session.add(artifact)
-        session.commit()
-        logger.info(f"Artefato registrado no banco: {storage_path}")
-    except Exception as e:
-        logger.error(f"Erro ao salvar artefato: {e}")
-        session.rollback()
-        # Nota: Em produção, talvez devêssemos apagar o arquivo do S3 se falhar aqui
-    finally:
-        session.close()
-
-# --- Lógica Principal ---
+        raise e
 
 def process_job(job_id: str, model_id: str, input_params: dict):
     """
-    Função executada pelo Worker (RQ).
-    Simula a geração de IA e faz upload do resultado.
+    Função principal executada pelo RQ Worker.
     """
-    logger.info(f"> Iniciando Job: {job_id}")
+    logger.info(f"Iniciando processamento do Job {job_id} (Model: {model_id})")
     
-    # Nome do arquivo local temporário e caminho remoto
-    local_filename = f"{job_id}_temp.glb"
-    remote_path = f"jobs/{job_id}/output.glb" # Padrão: jobs/{uuid}/output.glb
+    session, job = get_job_session(job_id)
+    if not job:
+        logger.error(f"Job {job_id} não encontrado no banco.")
+        return
 
-    try:
-        # 1. Muda status para RUNNING
-        update_job_status(job_id, "RUNNING")
+    # 1. Atualiza Status para PROCESSING
+    job.status = JobStatus.PROCESSING
+    job.started_at = datetime.utcnow()
+    session.commit()
 
-        # 2. Simulação da IA (Fake Generation)
-        logger.info("> Gerando modelo 3D (Fake)...")
-        time.sleep(5) 
-        
-        # Cria um arquivo local "fake"
-        with open(local_filename, "w") as f:
-            f.write(f"Conteudo 3D Fake do Job {job_id}")
-        
-        # Pega o tamanho para salvar no banco
-        file_size = os.path.getsize(local_filename)
+    # Cria diretório temporário para isolar este job
+    with tempfile.TemporaryDirectory() as temp_dir:
+        try:
+            output_file_path = None
+            artifact_type = ArtifactType.MODEL_3D
+            
+            # ====================================================
+            # LÓGICA DO STABLE FAST 3D (Image-to-3D)
+            # ====================================================
+            if model_id == "sf3d-v1":
+                image_filename = input_params.get("image_path", "teste_input.png")
+                bucket_name = input_params.get("bucket", settings.MINIO_BUCKET)
+                
+                local_input = os.path.join(temp_dir, "input_image.png")
+                local_output = os.path.join(temp_dir, "output.glb")
 
-        # 3. Upload para o MinIO (Storage)
-        logger.info(f"> Fazendo upload para: {remote_path}")
-        storage.upload_file(local_filename, remote_path)
+                logger.info(f"Baixando input '{image_filename}' do bucket '{bucket_name}'...")
+                storage.download_file(bucket_name, image_filename, local_input)
 
-        # 4. Salva referência no Banco (Artifacts)
-        save_artifact(job_id, remote_path, file_size)
+                wrapper_script = WRAPPERS_DIR / "sf3d" / "run.py"
+                cmd = [
+                    sys.executable, str(wrapper_script),
+                    "--input_path", local_input,
+                    "--output_path", local_output,
+                    "--texture_resolution", str(input_params.get("texture_resolution", 1024)),
+                    "--remesh_option", str(input_params.get("remesh_option", "triangle"))
+                ]
 
-        # 5. Sucesso
-        update_job_status(job_id, "SUCCEEDED")
-        logger.info("> Job finalizado com sucesso!")
+                logger.info(f"Chamando Wrapper SF3D...")
+                subprocess.run(cmd, check=True)
+                
+                output_file_path = local_output
 
-    except Exception as e:
-        logger.error(f"> Falha no Job {job_id}: {e}")
-        update_job_status(job_id, "FAILED")
-        # Relança para o RQ contar como falha
-        raise e
-        
-    finally:
-        # 6. Limpeza (Sempre apaga o arquivo local, dando certo ou errado)
-        if os.path.exists(local_filename):
-            os.remove(local_filename)
-            logger.info("> Arquivo temporário removido.")
+            # ====================================================
+            # LÓGICA DO DREAMFUSION (Text-to-3D)
+            # ====================================================
+            elif model_id == "dreamfusion-sd":
+                prompt = input_params.get("prompt")
+                if not prompt:
+                    raise ValueError("Parâmetro 'prompt' é obrigatório para DreamFusion.")
+                
+                local_output = os.path.join(temp_dir, "output.obj")
+                
+                wrapper_script = WRAPPERS_DIR / "dreamfusion" / "run.py"
+                cmd = [
+                    sys.executable, str(wrapper_script),
+                    "--prompt", prompt,
+                    "--output_path", local_output,
+                    "--max_steps", str(input_params.get("max_steps", 1000))
+                ]
+
+                logger.info(f"Chamando Wrapper DreamFusion...")
+                subprocess.run(cmd, check=True)
+                
+                output_file_path = local_output
+
+            else:
+                raise ValueError(f"Modelo desconhecido: {model_id}")
+
+            # ====================================================
+            # UPLOAD E FINALIZAÇÃO
+            # ====================================================
+            
+            if output_file_path and os.path.exists(output_file_path):
+                file_ext = Path(output_file_path).suffix
+                remote_path = f"jobs/{job_id}/model{file_ext}"
+                file_size = os.path.getsize(output_file_path)
+                
+                logger.info(f"Fazendo upload do resultado para {remote_path}...")
+                storage.upload_file(output_file_path, settings.MINIO_BUCKET, remote_path)
+
+                # CORREÇÃO AQUI: Alinhado com artifact_model.py
+                artifact = Artifact(
+                    job_id=job_id,
+                    type=artifact_type,
+                    storage_path=remote_path,
+                    file_size_bytes=file_size
+                )
+                session.add(artifact)
+                
+                job.status = JobStatus.SUCCEEDED
+                job.completed_at = datetime.utcnow()
+                job.progress_percent = 100
+                session.commit()
+                logger.info(f"Job {job_id} concluído com sucesso!")
+
+            else:
+                raise FileNotFoundError("O Wrapper finalizou mas não gerou o arquivo de saída esperado.")
+
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Erro na execução do Wrapper CLI: {e}")
+            job.status = JobStatus.FAILED
+            job.error_message = "Erro interno na execução do modelo de IA."
+            session.commit()
+            
+        except Exception as e:
+            logger.error(f"Erro genérico no worker: {e}", exc_info=True)
+            job.status = JobStatus.FAILED
+            job.error_message = str(e)
+            session.commit()
+            
+        finally:
+            session.close()
