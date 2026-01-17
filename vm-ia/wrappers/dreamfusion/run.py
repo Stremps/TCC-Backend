@@ -19,13 +19,19 @@ BASE_CONFIG = os.getenv("DREAMFUSION_CONFIG", "configs/dreamfusion-sd.yaml")
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [DreamFusion Wrapper] - %(message)s')
 logger = logging.getLogger(__name__)
 
-def run_inference(prompt: str, output_path: str, max_steps: int = 300):
+def run_inference(prompt: str, output_path: str, max_steps: int = 1000):
     """
     Executa o pipeline completo do Threestudio: Treino -> Exportação.
     Args:
-        max_steps: Mínimo recomendado 300 para evitar erro de geometria vazia.
+	max_steps: Mínimo forçado de 1000 steps para garantir geometria válida.
     """
-    
+
+    # Garantindo que tenha no mínimo 1000 steps
+    if max_steps < 1000:
+        logger.warning(f"Passos solicitados ({max_steps}) insuficientes para convergência de geometria.")
+        logger.warning("Ajustando automaticamente para o MÍNIMO DE 1000 STEPS.")
+        max_steps = 1000
+
     # 1. Validações
     if not VENV_PYTHON or not MODEL_SCRIPT:
         logger.error("ERRO: Variáveis de ambiente DREAMFUSION_* não definidas.")
@@ -146,10 +152,10 @@ def run_inference(prompt: str, output_path: str, max_steps: int = 300):
         source_file = found_objs[0]
         
         shutil.move(str(source_file), output_path)
-        logger.info(f"✅ Sucesso! Modelo salvo em: {output_path}")
+        logger.info(f"Sucesso! Modelo salvo em: {output_path}")
 
     except Exception as e:
-        logger.error(f"❌ Erro crítico: {e}")
+        logger.error(f"Erro crítico: {e}")
         sys.exit(1)
 
     else:
@@ -163,7 +169,7 @@ if __name__ == "__main__":
     parser.add_argument("--prompt", required=True, help="Prompt de texto")
     parser.add_argument("--output_path", required=True, help="Destino do arquivo")
     # Alterado default para 300 para segurança
-    parser.add_argument("--max_steps", type=int, default=300, help="Passos de treino")
+    parser.add_argument("--max_steps", type=int, default=1000, help="Passos de treino")
 
     args = parser.parse_args()
 
