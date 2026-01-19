@@ -3,15 +3,56 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from app.models.ai_model import AIModel
-from app.models.artifact_model import Artifact
-from app.models.job_model import Job
-from app.schemas.artifact import ArtifactDownload
+from app.models.artifact_model import Artifact, ArtifactType
+from app.models.job_model import Job, JobStatus
+from app.schemas.artifact import ArtifactDownload, ArtifactUploadRequest, ArtifactUploadResponse
 from app.schemas.job import JobCreate, JobRead
 from app.api.deps import CurrentUser, db_session
 from app.core.queue import job_queue
 from app.core.storage import storage
 
 router = APIRouter()
+
+@router.post("/upload-ticket", response_model=ArtifactUploadResponse)
+async def generate_upload_ticket(
+    ticket_in: ArtifactUploadRequest,
+    current_user: CurrentUser, # Segurança: Apenas logados podem subir arquivos
+):
+    """
+    Gera uma URL assinada (Ticket) para o Frontend subir arquivos diretamente para o MinIO.
+    Fluxo:
+    1. Frontend pede permissão enviando nome e tipo do arquivo.
+    2. API gera um caminho único e uma URL assinada (PUT).
+    3. Frontend usa a URL para enviar o arquivo.
+    4. Frontend cria o Job enviando o 'object_name' retornado aqui.
+    """
+    
+    # 1. Gerar um identificador único para evitar colisão de nomes
+    # Estrutura: uploads/inputs/{uuid}-{filename_original}
+    file_uuid = uuid.uuid4()
+    sanitized_filename = ticket_in.filename.replace(" ", "_") # Limpeza básica
+    object_name = f"uploads/inputs/{file_uuid}-{sanitized_filename}"
+
+    # 2. Gerar a URL assinada no Storage
+    # Validade de 300 segundos (5 minutos) é suficiente para iniciar o upload
+    expiration = 300 
+    upload_url = storage.generate_presigned_upload_url(
+        object_name=object_name,
+        content_type=ticket_in.content_type,
+        expiration=expiration
+    )
+
+    if not upload_url:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Falha ao gerar ticket de upload no Storage."
+        )
+
+    return ArtifactUploadResponse(
+        upload_url=upload_url,
+        object_name=object_name,
+        expires_in=expiration
+    )
 
 @router.post("/", response_model=JobRead, status_code=status.HTTP_201_CREATED)
 async def create_job(
@@ -21,7 +62,7 @@ async def create_job(
 ):
     """
     Cria um novo Job de geração 3D.
-    Valida se o modelo existe e associa ao usuário autenticado.
+    Valida se o modelo existe, associa ao usuário autenticado e e registra seus artefatos de entrada.
     """
     
     # 1. Validação de Negócio: O modelo de IA existe?
@@ -41,17 +82,37 @@ async def create_job(
     new_job = Job(
         user_id=current_user.id,
         model_id=job_in.model_id,
+        status=JobStatus.QUEUED,
         prompt=job_in.prompt,
-        input_params=job_in.input_params,
-        status="QUEUED"  # Estado inicial obrigatório
+        input_params=job_in.input_params 
     )
 
-    # 3. Persistência
     session.add(new_job)
-    await session.commit()
-    await session.refresh(new_job) # Atualiza o objeto com o ID e Created_at gerados pelo banco
+    # Flush para garantir que new_job.id esteja disponível para uso no artefato
+    await session.flush() 
 
-    # 4. Envio para a Fila
+    # 3. Registro do Artefato de Entrada (Se houver)
+    # Se o job tem um input de imagem (vindo do upload-ticket), registramos agora na tabela Artifacts.
+    # Isso garante rastreabilidade total: Job -> Artifact(INPUT) -> MinIO
+    
+    input_image_path = job_in.input_params.get("image_path")
+
+    if input_image_path:
+        # Cria o registro do artefato linkado ao Job
+        input_artifact = Artifact(
+            job_id=new_job.id,                 
+            type=ArtifactType.INPUT,           # Classificação correta via Enum
+            storage_path=input_image_path,     # Caminho no MinIO
+            file_size_bytes=None               # O Frontend não mandou o tamanho, fica None por enquanto
+        )
+        session.add(input_artifact)
+
+    # 4. Commit Atômico (Job + Artifact são salvos juntos)
+    await session.commit()
+    await session.refresh(new_job)
+
+    # 5. Enfileiramento no Redis
+    # Timeout de 1h30min (5400s) para suportar modelos pesados como DreamFusion
     job_queue.enqueue(     # Passamos apenas dados simples (strings/dicts), nunca objetos do Banco.
         "app.worker.process_job",
         str(new_job.id),      # Converta UUID para string

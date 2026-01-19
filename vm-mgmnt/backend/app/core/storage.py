@@ -42,6 +42,7 @@ class StorageClient:
     def upload_file(self, file_path: str, object_name: str) -> str:
         """
         Faz o upload de um arquivo local para o MinIO.
+        (Utilizado principalmente pelo Worker ou seeds internas)
         
         Args:
             file_path: Caminho do arquivo no disco local (ex: /tmp/cubo.glb)
@@ -59,29 +60,55 @@ class StorageClient:
             raise e
 
     def generate_presigned_url(self, object_name: str, expiration: int = 3600) -> str:
-            """
-            Gera uma URL temporária para download direto do MinIO.
+        """
+        Gera uma URL temporária para download direto do MinIO.
+        
+        Args:
+            object_name: O caminho do arquivo no bucket (ex: jobs/123/output.glb)
+            expiration: Tempo de vida do link em segundos (Padrão: 1 hora)
             
-            Args:
-                object_name: O caminho do arquivo no bucket (ex: jobs/123/output.glb)
-                expiration: Tempo de vida do link em segundos (Padrão: 1 hora)
-                
-            Returns:
-                A URL completa e assinada.
-            """
-            try:
-                url = self.s3_client.generate_presigned_url(
-                    'get_object',
-                    Params={
-                        'Bucket': self.bucket_name,
-                        'Key': object_name
-                    },
-                    ExpiresIn=expiration
-                )
-                return url
-            except ClientError as e:
-                logger.error(f"Erro ao gerar URL assinada: {e}")
-                return "" # Ou lançar exceção, dependendo da estratégia
+        Returns:
+            A URL completa e assinada.
+        """
+
+        try:
+            url = self.s3_client.generate_presigned_url(
+                'get_object',
+                Params={
+                    'Bucket': self.bucket_name,
+                    'Key': object_name
+                },
+                ExpiresIn=expiration
+            )
+            return url
+        except ClientError as e:
+            logger.error(f"Erro ao gerar URL de download assinada: {e}")
+            return ""
+
+    def generate_presigned_upload_url(self, object_name: str, content_type: str, expiration: int = 300) -> str:
+        """
+        Gera uma URL temporária para UPLOAD (PUT) direto para o MinIO.
+        O Frontend usará esta URL para enviar o arquivo binário.
+
+        Args:
+            object_name: Caminho final do arquivo (ex: uploads/inputs/uuid.png)
+            content_type: Tipo MIME do arquivo (ex: image/png). Importante para validar no MinIO.
+            expiration: Tempo de validade do ticket em segundos (Default: 5 min)
+        """
+        try:
+            url = self.s3_client.generate_presigned_url(
+                'put_object',
+                Params={
+                    'Bucket': self.bucket_name,
+                    'Key': object_name,
+                    'ContentType': content_type
+                },
+                ExpiresIn=expiration
+            )
+            return url
+        except ClientError as e:
+            logger.error(f"Erro ao gerar URL de upload assinada: {e}")
+            return ""
 
 # Instância Singleton:
 # Ao importar 'storage' em outros arquivos, usaremos sempre esta mesma conexão
