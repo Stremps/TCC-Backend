@@ -1,8 +1,28 @@
+from pydantic import AnyHttpUrl, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     # Nome do projeto
     PROJECT_NAME: str = "TCC Pipeline 3D"
+
+    # --- CORS (Segurança de Acesso) ---
+    # Lista de URLs permitidas. Ex no .env: BACKEND_CORS_ORIGINS="http://localhost:3000,http://localhost:8080"
+    BACKEND_CORS_ORIGINS: list[str] | str = []
+
+    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: str | list[str]) -> list[str] | str:
+        """
+        Validador que transforma a string do .env em uma lista de strings.
+        Aceita: "http://a.com,http://b.com" -> ["http://a.com", "http://b.com"]
+        """
+        # Se vier uma string (do .env), separamos por vírgula
+        if isinstance(v, str) and not v.startswith("["):
+            return [i.strip() for i in v.split(",")]
+        # Se já vier lista ou for JSON válido, retorna direto
+        elif isinstance(v, (list, str)):
+            return v
+        raise ValueError(v)
 
     # Conexão com banco de dados
     DATABASE_URL: str

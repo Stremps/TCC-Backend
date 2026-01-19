@@ -199,7 +199,6 @@ Gera uma URL temporária e segura (**Presigned URL**) para baixar o arquivo 3D f
   "download_url": "[http://192.168.1.181:9000/tcc-pipeline/jobs/...?X-Amz-Signature=](http://192.168.1.181:9000/tcc-pipeline/jobs/...?X-Amz-Signature=)...",
   "expires_in": 3600
 }
-
 ```
 
 ---
@@ -234,22 +233,28 @@ Este projeto utiliza uma arquitetura baseada em eventos para processamento assí
 
 ---
 
-## ⚙️ Variáveis de Ambiente (.env)
+## 3) Variáveis de Ambiente (.env)
 
 Crie um arquivo `.env` na raiz desta pasta baseado no `.env.example`. Abaixo, a explicação detalhada de cada variável crítica para a infraestrutura.
 
-### 🗄️ Banco de Dados (Postgres)
+### A) Banco de Dados (Postgres)
 | Variável | Descrição | Exemplo |
 | :--- | :--- | :--- |
 | `DATABASE_URL` | String de conexão SQLAlchemy (Async). | `postgresql+asyncpg://user:pass@host:5432/db` |
 
-### 🚀 Fila de Tarefas (Redis)
+### B) Segurança e Acesso (CORS)
+Controle de quais domínios podem consumir a API (Frontend).
+| Variável | Descrição | Exemplo |
+| :--- | :--- | :--- |
+| `BACKEND_CORS_ORIGINS` | Lista de origens permitidas separadas por vírgula. | `http://localhost:3000,http://editor-3d.com` |
+
+### C) Fila de Tarefas (Redis)
 Necessário para comunicação entre API e Workers.
 | Variável | Descrição | Exemplo |
 | :--- | :--- | :--- |
 | `REDIS_URL` | Endereço do broker Redis. | `redis://localhost:6379/0` |
 
-### ☁️ Object Storage (MinIO / S3)
+### D) Object Storage (MinIO / S3)
 Configuração para upload de artefatos gerados.
 | Variável | Descrição | Exemplo |
 | :--- | :--- | :--- |
@@ -259,4 +264,29 @@ Configuração para upload de artefatos gerados.
 | `MINIO_BUCKET` | Nome do bucket para salvar arquivos. | `tcc-pipeline` |
 | `MINIO_SECURE` | Define se usa HTTPS (`True`) ou HTTP (`False`). | `False` |
 
----
+## 4) Fluxo de Upload e Consumo (API)
+
+Para garantir escalabilidade e evitar sobrecarga no servidor de aplicação, o sistema utiliza o padrão de **Presigned URLs** (Ticket Pattern). A API não recebe arquivos binários diretamente.
+
+### A) Workflow de Criação de Job (Com Upload)
+
+1.  **Solicitar Ticket:** O cliente (Frontend) requisita permissão de upload.
+    * `POST /api/v1/jobs/upload-ticket`
+    * Body: `{"filename": "textura.png", "content_type": "image/png"}`
+    * Response: Retorna uma `upload_url` (assinada) e um `object_name`.
+
+2.  **Upload Direto:** O cliente envia o arquivo binário diretamente para o Storage (MinIO) usando a `upload_url`.
+    * Método: `PUT`
+    * Header: `Content-Type: image/png`
+
+3.  **Criar Job:** O cliente confirma a criação do job enviando o caminho do arquivo.
+    * `POST /api/v1/jobs/`
+    * Body: `{"model_id": "sf3d-v1", "input_params": {"image_path": "object_name_recebido_no_passo_1"}}`
+
+**Nota:** O artefato de input só é registrado na tabela `artifacts` se o Job for criado com sucesso (consistência atômica).
+
+### B) Segurança (CORS)
+
+O Backend implementa um Middleware de segurança que intercepta todas as requisições.
+* **Allowlist:** Apenas origens listadas em `BACKEND_CORS_ORIGINS` recebem os headers `Access-Control-Allow-Origin`.
+* **Credenciais:** O sistema permite `allow_credentials=True`, suportando autenticação via Cookies/Headers seguros entre domínios distintos (ex: Frontend em localhost:3000 e API em localhost:8000).
