@@ -28,7 +28,7 @@ app.include_router(api_router, prefix="/api/v1")
 def root():
     return {"message": "API TCC Pipeline 3D está online!"}
 
-@app.get("/health")
+@app.get("/api/v1/health")
 def health_check():
     """
     Rota simples para verificar se a API está de pé.
