@@ -1,0 +1,19 @@
+services:
+  frontend-dev:
+    image: node:20-alpine
+    container_name: labcg-frontend-dev
+    working_dir: /app
+    volumes:
+      # Mapeia sua pasta local para dentro do container
+      - ./frontend:/app
+      # REMOVIDO: - /app/node_modules (Agora usamos o node_modules do seu host Linux)
+    ports:
+      - "3000:3000"
+    # Comando reforçado: Instala se faltar algo, depois roda o server
+    # O host 0.0.0.0 é essencial para o Docker expor a porta
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    environment:
+      # IMPORTANTE: Se o backend estiver rodando no seu Linux (fora do Docker),
+      # precisamos usar o IP da rede Docker para sair do container.
+      # Tente usar 172.17.0.1 (IP padrão do host no Linux) ou host.docker.internal
+      VITE_API_TARGET: "http://192.168.1.180:8000"

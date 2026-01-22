@@ -1,0 +1,26 @@
+/* Importação da Fonte Inter do Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Diretivas do Tailwind */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Reset Global e Estilo Base */
+body {
+  @apply bg-gunmetal text-textMain font-sans antialiased;
+}
+
+/* Custom Scrollbar (Opcional, para ficar elegante como no Dark Mode) */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-gunmetal;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-surface rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-primary/50; /* Transparência do Tailwind */
+}
