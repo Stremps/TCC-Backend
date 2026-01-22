@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   
   // Define o alvo: Se o Docker mandar um alvo, usa ele. Se não, usa localhost.
-  const apiTarget = env.VITE_API_TARGET || 'http://192.168.1.180:8000';
+  const apiTarget = env.VITE_API_TARGET || 'http://0.0.0.0:8000';
 
   return {
     plugins: [react()],

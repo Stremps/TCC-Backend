@@ -36,12 +36,20 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-      console.warn('Sessão expirada ou inválida via Interceptor.');
-      
-      //Limpar storage e redirecionar para login
-      localStorage.clear();
-      window.location.href = '/'; 
+    // Verifica se existe resposta de erro
+    if (error.response) {
+        // Lógica para ignorar o 401 se for na tela de Login
+        const isLoginRequest = error.config.url.includes('/auth/login');
+
+        if ((error.response.status === 401 || error.response.status === 403) && !isLoginRequest) {
+            console.warn('Sessão expirada. Redirecionando...');
+            localStorage.removeItem('labcg_api_key');
+            
+            // Só redireciona se JÁ NÃO estivermos na tela de login
+            if (window.location.pathname !== '/') {
+                window.location.href = '/';
+            }
+        }
     }
     return Promise.reject(error);
   }
