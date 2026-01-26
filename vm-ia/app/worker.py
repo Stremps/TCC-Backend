@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from datetime import datetime
+import trimesh # <--- Adicione esta linha
 
 # Imports do Core
 from app.core.database import SessionLocal
@@ -22,6 +23,31 @@ logger = logging.getLogger(__name__)
 # Caminho absoluto para a pasta de wrappers
 BASE_DIR = Path(__file__).resolve().parents[1]
 WRAPPERS_DIR = BASE_DIR / "wrappers"
+
+def convert_obj_to_glb(input_obj_path: str, output_glb_path: str):
+    """
+    Converte um arquivo .obj (texto) para .glb (binário) usando trimesh.
+    Essencial para visualização Web (<model-viewer>) e Unity.
+    """
+    logger.info(f"Iniciando conversão de formato: OBJ -> GLB")
+    try:
+        # Carrega o OBJ. O trimesh detecta automaticamente se é uma Cena ou uma Malha única.
+        scene_or_mesh = trimesh.load(input_obj_path)
+        
+        # Exporta para GLB
+        scene_or_mesh.export(output_glb_path, file_type='glb')
+        
+        # Verificação básica
+        if os.path.exists(output_glb_path) and os.path.getsize(output_glb_path) > 0:
+            logger.info(f"Conversão concluída: {output_glb_path}")
+            return True
+        else:
+            logger.error("Arquivo GLB não foi criado ou está vazio.")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Falha crítica na conversão OBJ->GLB: {e}")
+        return False
 
 def update_job_start(job_id: str):
     """
@@ -142,7 +168,9 @@ def process_job(job_id: str, model_id: str, input_params: dict):
                 if not prompt:
                     raise ValueError("Parâmetro 'prompt' é obrigatório para DreamFusion.")
                 
-                local_output = os.path.join(temp_dir, "output.obj")
+                # Definimos os caminhos: O Wrapper gera OBJ, nós queremos GLB
+                local_obj = os.path.join(temp_dir, "output.obj")
+                local_glb = os.path.join(temp_dir, "output.glb")
                 
                 wrapper_script = WRAPPERS_DIR / "dreamfusion" / "run.py"
                 
@@ -157,7 +185,15 @@ def process_job(job_id: str, model_id: str, input_params: dict):
                 # Timeout implícito pelo RQ, mas aqui deixamos o subprocess rodar
                 subprocess.run(cmd, check=True)
                 
-                output_file_path = local_output
+                # --- NOVO PASSO: PÓS-PROCESSAMENTO (Conversão) ---
+                if os.path.exists(local_obj):
+                    success = convert_obj_to_glb(local_obj, local_glb)
+                    if success:
+                        output_file_path = local_glb # Sucesso! O arquivo final é o GLB
+                    else:
+                        raise RuntimeError("O arquivo OBJ foi gerado, mas a conversão para GLB falhou.")
+                else:
+                    raise FileNotFoundError("O Wrapper finalizou mas não gerou o arquivo output.obj.")
 
             else:
                 raise ValueError(f"Modelo desconhecido: {model_id}")
