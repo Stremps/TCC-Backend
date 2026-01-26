@@ -1,6 +1,7 @@
 import uuid
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
+from typing import List
 
 from app.models.ai_model import AIModel
 from app.models.artifact_model import Artifact, ArtifactType
@@ -210,3 +211,27 @@ async def download_job_artifact(
         download_url=presigned_url,
         expires_in=600
     )
+
+@router.get("/", response_model=List[JobRead])
+async def list_jobs(
+    current_user: CurrentUser,
+    session: db_session,
+    skip: int = 0,
+    limit: int = 50  # Default seguro para não travar o front
+):
+    """
+    Lista todos os jobs do usuário logado.
+    Ordenados do mais recente para o mais antigo.
+    """
+    stmt = (
+        select(Job)
+        .where(Job.user_id == current_user.id)
+        .order_by(Job.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    
+    result = await session.execute(stmt)
+    jobs = result.scalars().all()
+    
+    return jobs
