@@ -89,8 +89,11 @@ def process_job(job_id: str, model_id: str, input_params: dict):
             # LÓGICA DO DREAMFUSION (Text-to-3D)
             # ====================================================
             elif model_id == "dreamfusion-sd":
-                prompt = input_params.get("prompt")
+                prompt = job.prompt or input_params.get("prompt")
+                
                 if not prompt:
+                    # Log de erro mais detalhado para debug
+                    logger.error(f"Job {job_id} falhou: Prompt vazio. Coluna DB: {job.prompt}, Params: {input_params.keys()}")
                     raise ValueError("Parâmetro 'prompt' é obrigatório para DreamFusion.")
                 
                 local_output = os.path.join(temp_dir, "output.obj")

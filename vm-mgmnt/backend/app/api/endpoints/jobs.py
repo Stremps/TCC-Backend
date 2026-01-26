@@ -78,24 +78,40 @@ async def create_job(
             detail=f"Modelo de IA '{job_in.model_id}' não encontrado."
         )
 
-    # 2. Criação do Objeto Job
+    # 2. TRATAMENTO DE DADOS (Sanitização), caso input esteja em parametros 
+    # Trabalhamos numa cópia para não alterar o objeto de entrada original
+    clean_params = job_in.input_params.copy()
+    
+    # Define o valor inicial do prompt vindo do payload (pode ser None no payload)
+    final_prompt = job_in.prompt
+
+    # Se o prompt veio "escondido" dentro dos parâmetros técnicos (comum em frontends antigos),
+    # nós o resgatamos e limpamos o dicionário.
+    if "prompt" in clean_params:
+        # Se o prompt principal estava vazio, usamos o que estava no dict
+        if not final_prompt:
+            final_prompt = clean_params["prompt"]
+        
+        # REMOVE do dict para evitar duplicação no banco (SSOT - Single Source of Truth)
+        del clean_params["prompt"]
+    
+    # 3. Criação do Objeto Job
     # Note que injetamos o user_id do usuário autenticado aqui
     new_job = Job(
         user_id=current_user.id,
         model_id=job_in.model_id,
         status=JobStatus.QUEUED,
-        prompt=job_in.prompt,
-        input_params=job_in.input_params 
+        prompt=final_prompt,      # <--- Vai para a coluna TEXT (Indexável e buscável)
+        input_params=clean_params # <--- Vai para a coluna JSONB (Apenas configs técnicas)
     )
 
     session.add(new_job)
     # Flush para garantir que new_job.id esteja disponível para uso no artefato
     await session.flush() 
 
-    # 3. Registro do Artefato de Entrada (Se houver)
+    # 4. Registro do Artefato de Entrada (Se houver)
     # Se o job tem um input de imagem (vindo do upload-ticket), registramos agora na tabela Artifacts.
     # Isso garante rastreabilidade total: Job -> Artifact(INPUT) -> MinIO
-    
     input_image_path = job_in.input_params.get("image_path")
 
     if input_image_path:
