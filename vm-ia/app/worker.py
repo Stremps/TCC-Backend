@@ -3,9 +3,11 @@ import os
 import logging
 import subprocess
 import tempfile
+import math
+import numpy as np
 from pathlib import Path
 from datetime import datetime
-import trimesh # <--- Adicione esta linha
+import trimesh # Biblioteca para manipulação de malhas 3D
 
 # Imports do Core
 from app.core.database import SessionLocal
@@ -28,25 +30,91 @@ def convert_obj_to_glb(input_obj_path: str, output_glb_path: str):
     """
     Converte um arquivo .obj (texto) para .glb (binário) usando trimesh.
     Essencial para visualização Web (<model-viewer>) e Unity.
+    
+    Inclui correções validadas (V3):
+    1. Extração manual de cores de vértices (formato não-padrão).
+    2. Correção de Orientação (Z-up para Y-up).
     """
     logger.info(f"Iniciando conversão de formato: OBJ -> GLB")
+    
+    if not os.path.exists(input_obj_path):
+        logger.error(f"Arquivo de entrada não encontrado: {input_obj_path}")
+        return False
+
     try:
-        # Carrega o OBJ. O trimesh detecta automaticamente se é uma Cena ou uma Malha única.
-        scene_or_mesh = trimesh.load(input_obj_path)
+        # 1. Leitura Manual para extração de Cores e Geometria
+        # O DreamFusion gera OBJs com cores nos vértices, que nem sempre são lidos corretamente por loaders padrão.
+        vertices = []
+        colors = []
+        faces = []
         
-        # Exporta para GLB
-        scene_or_mesh.export(output_glb_path, file_type='glb')
+        logger.info("Lendo OBJ e extraindo cores manualmente...")
+        with open(input_obj_path, 'r') as f:
+            for line in f:
+                if line.startswith('v '):
+                    parts = line.strip().split()
+                    # Geometria (X, Y, Z)
+                    vertices.append([float(parts[1]), float(parts[2]), float(parts[3])])
+                    
+                    # Cores (R, G, B) - Se existirem no formato estendido
+                    if len(parts) >= 7:
+                        r, g, b = float(parts[4]), float(parts[5]), float(parts[6])
+                        # Normalização: se vier float 0.0-1.0, converte para 0-255
+                        if r <= 1.0 and g <= 1.0 and b <= 1.0: 
+                             colors.append([int(r*255), int(g*255), int(b*255), 255])
+                        else: 
+                             colors.append([int(r), int(g), int(b), 255])
+                    else:
+                        # Fallback: Branco se não tiver cor
+                        colors.append([255, 255, 255, 255])
+                
+                elif line.startswith('f '):
+                    # Faces (índices 1-based do OBJ para 0-based do Python)
+                    face_idxs = []
+                    parts = line.strip().split()[1:]
+                    for p in parts:
+                        idx = int(p.split('/')[0]) - 1 
+                        face_idxs.append(idx)
+                    
+                    # Triangulação simples
+                    if len(face_idxs) >= 3:
+                        faces.append(face_idxs[:3])
+                        if len(face_idxs) == 4: # Transforma quad em 2 triângulos
+                            faces.append([face_idxs[0], face_idxs[2], face_idxs[3]])
+
+        # 2. Reconstrução da Malha com Trimesh
+        # process=False é crucial para evitar que o trimesh reordene vértices e perca a referência das cores
+        mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
         
-        # Verificação básica
+        # Aplicação das Cores Visuais (sem textura/UV, apenas vertex colors)
+        if len(colors) == len(vertices):
+            mesh.visual = trimesh.visual.ColorVisuals(mesh, vertex_colors=colors)
+            logger.info("Cores de vértice aplicadas com sucesso.")
+        else:
+            logger.warning(f"Descompasso de cores: {len(colors)} cores para {len(vertices)} vértices.")
+
+        # 3. Correção de Orientação (Z-up -> Y-up)
+        # Aplica rotação de -90 graus no eixo X para o modelo ficar "em pé"
+        logger.info("Aplicando correção de rotação (Z-up -> Y-up)...")
+        rotation_matrix = trimesh.transformations.rotation_matrix(
+            math.radians(-90), 
+            [1, 0, 0]
+        )
+        mesh.apply_transform(rotation_matrix)
+
+        # 4. Exportação
+        mesh.export(output_glb_path, file_type='glb')
+        
+        # Verificação final
         if os.path.exists(output_glb_path) and os.path.getsize(output_glb_path) > 0:
-            logger.info(f"Conversão concluída: {output_glb_path}")
+            logger.info(f"Conversão concluída com sucesso: {output_glb_path}")
             return True
         else:
             logger.error("Arquivo GLB não foi criado ou está vazio.")
             return False
             
     except Exception as e:
-        logger.error(f"Falha crítica na conversão OBJ->GLB: {e}")
+        logger.error(f"Falha crítica na conversão OBJ->GLB: {e}", exc_info=True)
         return False
 
 def update_job_start(job_id: str):
@@ -174,29 +242,36 @@ def process_job(job_id: str, model_id: str, input_params: dict):
                 
                 wrapper_script = WRAPPERS_DIR / "dreamfusion" / "run.py"
                 
+                # O Wrapper continua configurado para gerar OBJ (fmt=obj)
                 cmd = [
                     sys.executable, str(wrapper_script),
                     "--prompt", prompt,
-                    "--output_path", local_output,
+                    "--output_path", local_obj, # O Wrapper salva o OBJ aqui
                     "--max_steps", str(input_params.get("max_steps", 1000))
                 ]
 
                 logger.info(f"Chamando Wrapper DreamFusion...")
-                # Timeout implícito pelo RQ, mas aqui deixamos o subprocess rodar
                 subprocess.run(cmd, check=True)
                 
-                # --- NOVO PASSO: PÓS-PROCESSAMENTO (Conversão) ---
                 if os.path.exists(local_obj):
+                    # --- EXTRA: Upload do Original (Apenas Storage) ---
+                    # Preserva o arquivo bruto para debug/comparação sem sujar o banco de dados
+                    try:
+                        remote_obj_path = f"jobs/{job_id}/model.obj"
+                        logger.info(f"Fazendo upload do OBJ original para {remote_obj_path}...")
+                        storage.upload_file(local_obj, settings.MINIO_BUCKET, remote_obj_path)
+                    except Exception as e:
+                        logger.warning(f"Falha não-crítica ao subir OBJ original: {e}")
+
+                    # --- PÓS-PROCESSAMENTO (Conversão para GLB) ---
+                    # O arquivo GLB será o artefato oficial registrado no sistema
                     success = convert_obj_to_glb(local_obj, local_glb)
                     if success:
-                        output_file_path = local_glb # Sucesso! O arquivo final é o GLB
+                        output_file_path = local_glb 
                     else:
                         raise RuntimeError("O arquivo OBJ foi gerado, mas a conversão para GLB falhou.")
                 else:
                     raise FileNotFoundError("O Wrapper finalizou mas não gerou o arquivo output.obj.")
-
-            else:
-                raise ValueError(f"Modelo desconhecido: {model_id}")
 
             # ====================================================
             # UPLOAD E FINALIZAÇÃO (Sessão Nova)
